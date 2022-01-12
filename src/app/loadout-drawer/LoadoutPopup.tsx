@@ -9,6 +9,7 @@ import {
   bucketsSelector,
   hasClassifiedSelector,
   storesSelector,
+  profileResponseSelector,
 } from 'app/inventory/selectors';
 import { editLoadout } from 'app/loadout-drawer/loadout-events';
 import MaxlightButton from 'app/loadout-drawer/MaxlightButton';
@@ -57,6 +58,9 @@ import {
   totalPostmasterItems,
 } from './postmaster';
 import { loadoutsSelector, previousLoadoutSelector } from './selectors';
+import { DestinyProfileResponse } from 'bungie-api-ts/destiny2';
+import { unlockedItemsForCharacterOrProfilePlugSet } from 'app/records/plugset-helpers';
+import { insertPlug } from 'app/inventory/advanced-write-actions';
 
 interface ProvidedProps {
   dimStore: DimStore;
@@ -74,6 +78,7 @@ interface StoreProps {
   searchFilter: ItemFilter;
   allItems: DimItem[];
   filteredItems: DimItem[];
+  profileInfo?: DestinyProfileResponse;
 }
 
 type Props = ProvidedProps & StoreProps & ThunkDispatchProp;
@@ -106,6 +111,7 @@ function mapStateToProps() {
     hasClassified: hasClassifiedSelector(state),
     allItems: allItemsSelector(state),
     filteredItems: filteredItemsSelector(state),
+    profileInfo: profileResponseSelector(state),
   });
 }
 
@@ -123,6 +129,7 @@ function LoadoutPopup({
   allItems,
   filteredItems,
   dispatch,
+  profileInfo,
 }: Props) {
   // For the most part we don't need to memoize this - this menu is destroyed when closed
 
@@ -164,25 +171,43 @@ function LoadoutPopup({
     dispatch(applyLoadout(dimStore, loadout, { allowUndo: true }));
   };
 
-  const applyRandomLoadout = (e: React.MouseEvent, weaponsOnly = false) => {
+  const applyRandomLoadout = (e: React.MouseEvent, mode = 'all') => {
+    console.log('applyRandomLoadout')
+    console.log('mode')
+    console.log(mode)
+    const weaponsOnly = mode !== 'all'
+    let windowMessage = query.length > 0
+    ? t('Loadouts.RandomizeSearchPrompt', { query })
+    : t('Loadouts.RandomizePrompt');
+    if (mode === 'weapons') {
+      windowMessage = t('Loadouts.RandomizeWeapons')
+    }
+    if (mode === 'style') {
+      windowMessage = 'Randomize your style?'
+    }
     if (
-      !window.confirm(
-        weaponsOnly
-          ? t('Loadouts.RandomizeWeapons')
-          : query.length > 0
-          ? t('Loadouts.RandomizeSearchPrompt', { query })
-          : t('Loadouts.RandomizePrompt')
-      )
+      !window.confirm(windowMessage)
     ) {
       e.preventDefault();
       return;
     }
     try {
+      console.log('dimStore')
+      console.log(dimStore)
+      console.log('allItems')
+      console.log(allItems)
+      console.log("weaponsOnly ? (i) => i.bucket?.sort === 'Weapons' && searchFilter(i) : searchFilter")
+      console.log(weaponsOnly ? (i: any) => i.bucket?.sort === 'Weapons' && searchFilter(i) : searchFilter)
+      console.log("searchFilter")
+      console.log(searchFilter)
       const loadout = randomLoadout(
         dimStore,
         allItems,
         weaponsOnly ? (i) => i.bucket?.sort === 'Weapons' && searchFilter(i) : searchFilter
       );
+      console.log('loadout')
+      console.log(loadout)
+      return;
       if (loadout) {
         dispatch(applyLoadout(dimStore, loadout, { allowUndo: true }));
       }
@@ -191,6 +216,163 @@ function LoadoutPopup({
       return;
     }
   };
+
+  const onInsertPlug = async (item: any, socket: any, plug: any) => {
+    console.log('onInsertPlug')
+    // setInsertInProgress(true);
+    try {
+      console.log('item')
+      console.log(item)
+      console.log('socket')
+      console.log(socket)
+      console.log('plug')
+      console.log(plug)
+      console.log('plug.hash')
+      console.log(plug.hash)
+      await dispatch(insertPlug(item, socket, plug.hash));
+    } catch (e) {
+      const plugName = plug.displayProperties.name ?? 'Unknown Plug';
+      showNotification({
+        type: 'error',
+        title: t('AWA.Error'),
+        body: t('AWA.ErrorMessage', { error: e.message, item: item.name, plug: plugName }),
+      });
+    }
+  };
+
+  const applyRandomShader = (e: React.MouseEvent, mode = 'oneShader') => {
+    if (!e) {
+      console.log(e)
+    }
+    const equippedItems = dimStore.items.filter(i => i.equipped && (i.bucket.inWeapons || i.bucket.inArmor));
+    const shaderPlugSetHash = 3841308088;
+    let countOfItemsNotSet = 0;
+    let oneShader:any;
+    console.log('profileInfo')
+    console.log(profileInfo)
+
+    if (!profileInfo) {
+      console.log('ERROR NO PROFILE INFO');
+      return;
+    }
+    const unlockedItems = unlockedItemsForCharacterOrProfilePlugSet(profileInfo, shaderPlugSetHash, 'valut');
+    const unlockedArray = Array.from(unlockedItems)
+    console.log('unlockedItems')
+    console.log(unlockedItems)
+    equippedItems.forEach(async i => {
+      const shaderSocket = i.sockets?.allSockets.find(s => s.plugSet?.hash === shaderPlugSetHash)
+      if (shaderSocket) {
+        console.log('shaderSocket', shaderSocket.plugSet?.plugs.length)
+        console.log('shaderSocket.equippable', shaderSocket.plugSet?.plugs.filter(p => p.plugDef.equippable).length)
+        console.log('shaderSocket.unlocked', shaderSocket.plugSet?.plugs.filter(p => unlockedArray.includes(p.plugDef.hash)).length);
+        const allUnlockedShaders = shaderSocket.plugSet?.plugs.filter(p => unlockedArray.includes(p.plugDef.hash)) || []
+        let chosenShader = allUnlockedShaders[Math.floor(Math.random()*allUnlockedShaders.length)]
+        if (mode === 'same' && oneShader) {
+          chosenShader = oneShader;
+        }
+        oneShader = chosenShader;
+        await onInsertPlug(i,shaderSocket,chosenShader.plugDef)
+      } else {
+        countOfItemsNotSet += 1;
+      }
+    })
+    console.log('countOfItemsNotSet', countOfItemsNotSet)
+  }
+
+  // function getAllShaders() {
+  //   const defs = useD2Definitions()!;
+  //   const [socket, setSocketInMenu] = useState<DimSocket | null>(null);
+  //   const initialPlug = socket?.plugged?.plugDef;
+  //   const [selectedPlug, setSelectedPlug] = useState<PluggableInventoryItemDefinition | null>(
+  //     initialPlug || null
+  //   );
+  
+  //   const socketType = defs.SocketType.get(socket.socketDefinition.socketTypeHash);
+  //   console.log('socketType')
+  //   console.log(socketType)
+  //   const socketCategory = defs.SocketCategory.get(socketType.socketCategoryHash);
+  //   console.log('socketCategory')
+  //   console.log(socketCategory)
+  
+  //   // Start with the inventory plugs
+  //   const modHashes = new Set<number>(inventoryPlugs);
+  //   console.log('modHashes')
+  //   console.log(modHashes)
+  //   const otherUnlockedPlugs = new Set<number>();
+  //   for (const modHash of inventoryPlugs) {
+  //     otherUnlockedPlugs.add(modHash);
+  //   }
+  
+  //   const initialPlugHash = socket.socketDefinition.singleInitialItemHash;
+  //   if (initialPlugHash) {
+  //     modHashes.add(initialPlugHash);
+  //   }
+  //   console.log('modHashes2')
+  //   console.log(modHashes)
+  
+  //   if (
+  //     socket.socketDefinition.plugSources & SocketPlugSources.ReusablePlugItems &&
+  //     socket.reusablePlugItems?.length
+  //   ) {
+  //     for (const plugItem of socket.reusablePlugItems) {
+  //       modHashes.add(plugItem.plugItemHash);
+  //       if (plugIsInsertable(plugItem)) {
+  //         otherUnlockedPlugs.add(plugItem.plugItemHash);
+  //       }
+  //     }
+  //   }
+  
+  //   if (socket.plugSet?.plugs) {
+  //     for (const dimPlug of socket.plugSet.plugs) {
+  //       modHashes.add(dimPlug.plugDef.hash);
+  //     }
+  //   }
+  //   if (socket.socketDefinition.randomizedPlugSetHash) {
+  //     for (const plugItem of defs.PlugSet.get(socket.socketDefinition.randomizedPlugSetHash)
+  //       .reusablePlugItems) {
+  //       modHashes.add(plugItem.plugItemHash);
+  //     }
+  //   }
+  //   console.log('modHashes3')
+  //   console.log(modHashes)
+  
+  //   const energyTypeHash = item.energy?.energyTypeHash;
+  //   const energyType = energyTypeHash !== undefined && defs.EnergyType.get(energyTypeHash);
+  
+  //   // Is this plug available to use?
+  //   const unlocked = (i: PluggableInventoryItemDefinition) =>
+  //     i.hash === initialPlugHash || unlockedPlugs.has(i.hash) || otherUnlockedPlugs.has(i.hash);
+    
+  //   console.log('unlocked')
+  //   console.log(unlocked)
+  
+  //   let mods = Array.from(modHashes, (h) => defs.InventoryItem.get(h))
+  //     .filter(
+  //       (i) =>
+  //         !i.plug ||
+  //         !i.plug.energyCost ||
+  //         (energyType && i.plug.energyCost.energyTypeHash === energyType.hash) ||
+  //         i.plug.energyCost.energyType === DestinyEnergyType.Any
+  //     )
+  //     .filter(isPluggableItem)
+  //     .filter((i) => unlocked(i) || !shownLockedPlugs || shownLockedPlugs.has(i.hash))
+  //     .sort(
+  //       chainComparator(
+  //         compareBy((i) => i.hash !== initialPlugHash),
+  //         reverseComparator(compareBy(unlocked)),
+  //         compareBy((i) => i.plug?.energyCost?.energyCost),
+  //         compareBy((i) => -i.inventory!.tierType),
+  //         compareBy((i) => i.displayProperties.name)
+  //       )
+  //     );
+  
+  //   if (initialPlug) {
+  //     mods = mods.filter((m) => m.hash !== initialPlug.hash);
+  //     mods.unshift(initialPlug);
+  //   }
+  //   console.log('mods')
+  //   console.log(mods)
+  // }
 
   // Move items matching the current search. Max 9 per type.
   const applySearchLoadout = () => {
@@ -287,10 +469,21 @@ function LoadoutPopup({
                 </span>
               </span>
               {query.length === 0 && (
-                <span onClick={(e) => applyRandomLoadout(e, true)}>
+                <span onClick={(e) => applyRandomLoadout(e, 'weapons')}>
                   <span>{t('Loadouts.WeaponsOnly')}</span>
                 </span>
               )}
+            </li>
+            <li className={styles.menuItem}>
+              <span onClick={applyRandomShader}>
+                <AppIcon icon={faRandom} />
+                <span>
+                  Random Shader
+                </span>
+              </span>
+              <span onClick={(e) => applyRandomShader(e, 'same')}>
+                <span>Same</span>
+              </span>
             </li>
             <li className={styles.menuItem}>
               <span onClick={onStartFarming}>
