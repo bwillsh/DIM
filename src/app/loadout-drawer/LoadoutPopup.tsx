@@ -221,17 +221,21 @@ function LoadoutPopup({
     console.log('onInsertPlug')
     // setInsertInProgress(true);
     try {
-      console.log('item')
-      console.log(item)
-      console.log('socket')
-      console.log(socket)
-      console.log('plug')
-      console.log(plug)
-      console.log('plug.hash')
-      console.log(plug.hash)
+      // console.log('item')
+      // console.log(item)
+      // console.log('socket')
+      // console.log(socket)
+      // console.log('plug')
+      // console.log(plug)
+      // console.log('plug.hash')
+      // console.log(plug.hash)
       await dispatch(insertPlug(item, socket, plug.hash));
     } catch (e) {
+      console.log('e')
+      console.log(e)
       const plugName = plug.displayProperties.name ?? 'Unknown Plug';
+      console.log('plugName')
+      console.log(plugName)
       showNotification({
         type: 'error',
         title: t('AWA.Error'),
@@ -240,32 +244,16 @@ function LoadoutPopup({
     }
   };
 
-  const applyRandomShader = (e: React.MouseEvent, mode = 'oneShader') => {
-    if (!e) {
-      console.log(e)
-    }
-    const equippedItems = dimStore.items.filter(i => i.equipped && (i.bucket.inWeapons || i.bucket.inArmor));
-    const shaderPlugSetHash = 3841308088;
-    let countOfItemsNotSet = 0;
+  const applyPlugToList = (items: DimItem[], hash: any, plugs: any, mode: string) => {
     let oneShader:any;
-    console.log('profileInfo')
-    console.log(profileInfo)
-
-    if (!profileInfo) {
-      console.log('ERROR NO PROFILE INFO');
-      return;
-    }
-    const unlockedItems = unlockedItemsForCharacterOrProfilePlugSet(profileInfo, shaderPlugSetHash, 'valut');
-    const unlockedArray = Array.from(unlockedItems)
-    console.log('unlockedItems')
-    console.log(unlockedItems)
-    equippedItems.forEach(async i => {
-      const shaderSocket = i.sockets?.allSockets.find(s => s.plugSet?.hash === shaderPlugSetHash)
+    let countOfItemsNotSet = 0;
+    items.forEach(async  i => {
+      const shaderSocket = i.sockets?.allSockets.find(s => s.plugSet?.hash === hash)
       if (shaderSocket) {
         console.log('shaderSocket', shaderSocket.plugSet?.plugs.length)
         console.log('shaderSocket.equippable', shaderSocket.plugSet?.plugs.filter(p => p.plugDef.equippable).length)
-        console.log('shaderSocket.unlocked', shaderSocket.plugSet?.plugs.filter(p => unlockedArray.includes(p.plugDef.hash)).length);
-        const allUnlockedShaders = shaderSocket.plugSet?.plugs.filter(p => unlockedArray.includes(p.plugDef.hash)) || []
+        console.log('shaderSocket.unlocked', shaderSocket.plugSet?.plugs.filter(p => plugs.includes(p.plugDef.hash)).length);
+        const allUnlockedShaders = shaderSocket.plugSet?.plugs.filter(p => plugs.includes(p.plugDef.hash)) || []
         let chosenShader = allUnlockedShaders[Math.floor(Math.random()*allUnlockedShaders.length)]
         if (mode === 'same' && oneShader) {
           chosenShader = oneShader;
@@ -279,100 +267,55 @@ function LoadoutPopup({
     console.log('countOfItemsNotSet', countOfItemsNotSet)
   }
 
-  // function getAllShaders() {
-  //   const defs = useD2Definitions()!;
-  //   const [socket, setSocketInMenu] = useState<DimSocket | null>(null);
-  //   const initialPlug = socket?.plugged?.plugDef;
-  //   const [selectedPlug, setSelectedPlug] = useState<PluggableInventoryItemDefinition | null>(
-  //     initialPlug || null
-  //   );
-  
-  //   const socketType = defs.SocketType.get(socket.socketDefinition.socketTypeHash);
-  //   console.log('socketType')
-  //   console.log(socketType)
-  //   const socketCategory = defs.SocketCategory.get(socketType.socketCategoryHash);
-  //   console.log('socketCategory')
-  //   console.log(socketCategory)
-  
-  //   // Start with the inventory plugs
-  //   const modHashes = new Set<number>(inventoryPlugs);
-  //   console.log('modHashes')
-  //   console.log(modHashes)
-  //   const otherUnlockedPlugs = new Set<number>();
-  //   for (const modHash of inventoryPlugs) {
-  //     otherUnlockedPlugs.add(modHash);
-  //   }
-  
-  //   const initialPlugHash = socket.socketDefinition.singleInitialItemHash;
-  //   if (initialPlugHash) {
-  //     modHashes.add(initialPlugHash);
-  //   }
-  //   console.log('modHashes2')
-  //   console.log(modHashes)
-  
-  //   if (
-  //     socket.socketDefinition.plugSources & SocketPlugSources.ReusablePlugItems &&
-  //     socket.reusablePlugItems?.length
-  //   ) {
-  //     for (const plugItem of socket.reusablePlugItems) {
-  //       modHashes.add(plugItem.plugItemHash);
-  //       if (plugIsInsertable(plugItem)) {
-  //         otherUnlockedPlugs.add(plugItem.plugItemHash);
-  //       }
-  //     }
-  //   }
-  
-  //   if (socket.plugSet?.plugs) {
-  //     for (const dimPlug of socket.plugSet.plugs) {
-  //       modHashes.add(dimPlug.plugDef.hash);
-  //     }
-  //   }
-  //   if (socket.socketDefinition.randomizedPlugSetHash) {
-  //     for (const plugItem of defs.PlugSet.get(socket.socketDefinition.randomizedPlugSetHash)
-  //       .reusablePlugItems) {
-  //       modHashes.add(plugItem.plugItemHash);
-  //     }
-  //   }
-  //   console.log('modHashes3')
-  //   console.log(modHashes)
-  
-  //   const energyTypeHash = item.energy?.energyTypeHash;
-  //   const energyType = energyTypeHash !== undefined && defs.EnergyType.get(energyTypeHash);
-  
-  //   // Is this plug available to use?
-  //   const unlocked = (i: PluggableInventoryItemDefinition) =>
-  //     i.hash === initialPlugHash || unlockedPlugs.has(i.hash) || otherUnlockedPlugs.has(i.hash);
-    
-  //   console.log('unlocked')
-  //   console.log(unlocked)
-  
-  //   let mods = Array.from(modHashes, (h) => defs.InventoryItem.get(h))
-  //     .filter(
-  //       (i) =>
-  //         !i.plug ||
-  //         !i.plug.energyCost ||
-  //         (energyType && i.plug.energyCost.energyTypeHash === energyType.hash) ||
-  //         i.plug.energyCost.energyType === DestinyEnergyType.Any
-  //     )
-  //     .filter(isPluggableItem)
-  //     .filter((i) => unlocked(i) || !shownLockedPlugs || shownLockedPlugs.has(i.hash))
-  //     .sort(
-  //       chainComparator(
-  //         compareBy((i) => i.hash !== initialPlugHash),
-  //         reverseComparator(compareBy(unlocked)),
-  //         compareBy((i) => i.plug?.energyCost?.energyCost),
-  //         compareBy((i) => -i.inventory!.tierType),
-  //         compareBy((i) => i.displayProperties.name)
-  //       )
-  //     );
-  
-  //   if (initialPlug) {
-  //     mods = mods.filter((m) => m.hash !== initialPlug.hash);
-  //     mods.unshift(initialPlug);
-  //   }
-  //   console.log('mods')
-  //   console.log(mods)
-  // }
+  const applyRandomShader = (e: React.MouseEvent, mode = 'oneShader') => {
+    if (!e) {
+      console.log(e)
+    }
+    const equippedItems = dimStore.items.filter(i => i.equipped && (i.bucket.inWeapons || i.bucket.inArmor));
+    const shaderPlugSetHash = 3841308088;
+    console.log('profileInfo')
+    console.log(profileInfo)
+
+    if (!profileInfo) {
+      console.log('ERROR NO PROFILE INFO');
+      return;
+    }
+    const unlockedItems = unlockedItemsForCharacterOrProfilePlugSet(profileInfo, shaderPlugSetHash, 'valut');
+    const unlockedArray = Array.from(unlockedItems)
+    console.log('unlockedItems')
+    console.log(unlockedItems)
+    applyPlugToList(equippedItems, shaderPlugSetHash, unlockedArray, mode)
+  }
+
+  const applyRandomShaderToAll = (e: React.MouseEvent, mode = 'oneShader') => {
+    if (!e) {
+      console.log(e)
+    }
+    console.log('mode')
+    console.log(mode)
+    console.log('dimStore.items.length')
+    console.log(dimStore.items.length)
+    const someItems = allItems.filter(i => (i.bucket.inWeapons || i.bucket.inArmor));
+    console.log('someItems.length')
+    console.log(someItems.length)
+    console.log('allItems.length')
+    console.log(allItems.length)
+    console.log('allItems')
+    console.log(allItems)
+    const shaderPlugSetHash = 3841308088;
+    console.log('profileInfo')
+    console.log(profileInfo)
+
+    if (!profileInfo) {
+      console.log('ERROR NO PROFILE INFO');
+      return;
+    }
+    const unlockedItems = unlockedItemsForCharacterOrProfilePlugSet(profileInfo, shaderPlugSetHash, 'valut');
+    const unlockedArray = Array.from(unlockedItems)
+    console.log('unlockedItems')
+    console.log(unlockedItems)
+    applyPlugToList(someItems, shaderPlugSetHash, unlockedArray, mode)
+  }
 
   // Move items matching the current search. Max 9 per type.
   const applySearchLoadout = () => {
@@ -482,6 +425,17 @@ function LoadoutPopup({
                 </span>
               </span>
               <span onClick={(e) => applyRandomShader(e, 'same')}>
+                <span>Same</span>
+              </span>
+            </li>
+            <li className={styles.menuItem}>
+              <span onClick={applyRandomShaderToAll}>
+                <AppIcon icon={faRandom} />
+                <span>
+                  All Items Random Shader
+                </span>
+              </span>
+              <span onClick={(e) => applyRandomShaderToAll(e, 'same')}>
                 <span>Same</span>
               </span>
             </li>

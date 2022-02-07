@@ -18,6 +18,7 @@ import {
   clearIcon,
   compareIcon,
   lockIcon,
+  downloadIcon,
   stickyNoteIcon,
   unlockedIcon,
 } from '../shell/icons';
@@ -40,6 +41,19 @@ export default React.memo(function ItemActionsDropdown({
   searchQuery,
   fixed,
 }: Props) {
+  function download(filename:any, text:any) {
+    var element = document.createElement('a');
+    element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(text));
+    element.setAttribute('download', filename);
+  
+    element.style.display = 'none';
+    document.body.appendChild(element);
+  
+    element.click();
+  
+    document.body.removeChild(element);
+  }
+
   const dispatch = useThunkDispatch();
   const isPhonePortrait = useIsPhonePortrait();
   const stores = useSelector(storesSortedByImportanceSelector);
@@ -92,8 +106,25 @@ export default React.memo(function ItemActionsDropdown({
       label: t('Header.TagAs', { tag: t(tag.label) }),
     }));
   bulkItemTags.push({ type: 'clear', label: t('Tags.ClearTag'), icon: clearIcon });
+  
+
+  const downloadInfo = () => {
+    console.log('filteredItems')
+    console.log(filteredItems)
+    download('current.txt', 'test');
+  };
 
   const dropdownOptions: Option[] = [
+    {
+      key: 'download',
+      onSelected: downloadInfo,
+      content: (
+        <>
+          <AppIcon icon={downloadIcon} /> Download
+        </>
+      ),
+    },
+    { key: 'idk' },
     ...stores.map((store) => ({
       key: `move-${store.id}`,
       onSelected: () => applySearchLoadout(store),
